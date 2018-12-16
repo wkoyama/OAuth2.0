@@ -5,8 +5,6 @@ from database_setup import Base, Restaurant, MenuItem
 from flask import session as login_session
 import random
 import string
-
-# IMPORTS FOR THIS STEP
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.client import FlowExchangeError
 import httplib2
@@ -16,27 +14,8 @@ import requests
 
 app = Flask(__name__)
 
-# IMPORTANTE: dependendo da versão do Flask que você tem, você pode ser capaz ou não de armazenar um objeto de credenciais na login_session da mesma maneira que Lorenzo. Ou você pode receber o seguinte erro:
-
-# OAuth2Credentials object is not JSON serializable
-
-# O que você deve fazer para corrigir isso? Há três opções:
-
-# Em vez de armazenar o objeto credentials por inteiro, você pode armazenar apenas o token de acesso. Ele pode ser acessado usando credentials.access_token.
-# A classe OAuth2Credentials vem com métodos que podem ajudar você. Os métodos .to_json() e .from_json() podem ajudar você armazenar e recuperar o objeto de credenciais no formato json.
-# Atualize suas versões do Flask, _ e _, para serem iguais às do Lorenzo. Execute os seguintes comandos:
-# pip install werkzeug==0.8.3
-# pip install flask==0.9
-# pip install Flask-Login==0.1.3
-# Observação: se você obtiver um erro de permissões, precisará incluir sudo no começo de cada comando. Ficaria algo assim: sudo pip install flask==0.9
-
-# Vá ao GoogleDevConsole> API & Auth> Credentials>Selecione seu aplicativo> Authorized Redirect URIs e adicione as seguintes URIS: http://localhost:5000/login e http://localhost:5000/gconnect Você pode ter de mudar o número da porta dependendo do número de porta que configurou para executar seu aplicativo.
-
-# Código de exemplo: https://github.com/udacity/ud330/blob/master/Lesson2/step5/project.py
-
-
 CLIENT_ID = json.loads(
-    open('client_secret.json', 'r').read())['web']['client_id']
+    open('client_secrets.json', 'r').read())['web']['client_id']
 APPLICATION_NAME = "Restaurant Menu Application"
 
 
@@ -140,6 +119,39 @@ def gconnect():
     flash("you are now logged in as %s" % login_session['username'])
     print "done!"
     return output
+
+    # DISCONNECT - Revoke a current user's token and reset their login_session
+
+
+@app.route('/gdisconnect')
+def gdisconnect():
+    access_token = login_session.get('access_token')
+    if access_token is None:
+        print 'Access Token is None'
+        response = make_response(json.dumps('Current user not connected.'), 401)
+        response.headers['Content-Type'] = 'application/json'
+        return response
+    print 'In gdisconnect access token is %s', access_token
+    print 'User name is: '
+    print login_session['username']
+    url = 'https://accounts.google.com/o/oauth2/revoke?token=%s' % login_session['access_token']
+    h = httplib2.Http()
+    result = h.request(url, 'GET')[0]
+    print 'result is '
+    print result
+    if result['status'] == '200':
+        del login_session['access_token']
+        del login_session['gplus_id']
+        del login_session['username']
+        del login_session['email']
+        del login_session['picture']
+        response = make_response(json.dumps('Successfully disconnected.'), 200)
+        response.headers['Content-Type'] = 'application/json'
+        return response
+    else:
+        response = make_response(json.dumps('Failed to revoke token for given user.', 400))
+        response.headers['Content-Type'] = 'application/json'
+        return response
 
 
 # JSON APIs to view Restaurant Information
